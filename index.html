@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Kaardistamine</title>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.2/leaflet.css" integrity="sha512-UkezATkM8unVC0R/Z9Kmq4gorjNoFwLMAWR/1yZpINW08I79jEKx/c8NlLSvvimcu7SL8pgeOnynxfRpe+5QpA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.2/leaflet.js" integrity="sha512-KMraOVM0qMVE0U1OULTpYO4gg5MZgazwPAPyMQWfOkEshpwlLQFCHZ/0lBXyviDNVL+pBGwmeXQnuvGK8Fscvg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.8.0/proj4.js" integrity="sha512-ha3Is9IgbEyIInSb+4S6IlEwpimz00N5J/dVLQFKhePkZ/HywIbxLeEu5w+hRjVBpbujTogNyT311tluwemy9w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4leaflet/1.0.2/proj4leaflet.min.js" integrity="sha512-GsAYl1wxzWW6azVpXkhyYfjMb2LbaOnlrqWMBdAk9xDcilinFvGMN+48Ajp/10u/9lcnh8YyS2CYNgung7ewHg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+	
+</head>
+<body style="margin:0;">
+<div id='map' style="height:100vh; background-color: black;"></div>
+<script>
+
+var crs = new L.Proj.CRS('EPSG:3301', '+proj=lcc +lat_1=59.33333333333334 +lat_2=58 +lat_0=57.51755393055556 +lon_0=24 +x_0=500000 +y_0=6375000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs', {
+	resolutions: [4000, 2000, 1000, 500, 250, 125, 62.5, 31.25, 15.625, 7.8125, 3.90625, 1.953125, 0.9765625, 0.48828125, 0.244140625, 0.122070313, 0.061035156, 0.030517578, 0.015258789],
+	origin: [40500, 5993000],
+	bounds: L.bounds([40500, 5993000], [1064500, 7017000])
+});
+var map = L.map('map', {
+	crs: crs,
+});
+
+map.attributionControl.setPrefix('<a href="https://leafletjs.com">Leaflet</a> &middot; <a href="https://geoportaal.maaamet.ee/est/Teenused/WMSWFS-teenused/TMS-WMS-C-ja-WMTS-teenused-p481.html">Maa-amet</a> &middot <a href="https://www.qgis.org/">QGIS</a>');
+
+map.fitBounds([
+	[60.28165, 30.624],
+	[57.17855, 19.46739]
+]);
+
+var b1 = L.tileLayer.wms('https://tiles.maaamet.ee/tm/?service=WMS', {
+	layers: 'foto',
+	maxNativeZoom: 14
+})
+
+var b2 = L.tileLayer.wms('https://tiles.maaamet.ee/tm/?service=WMS', {
+	layers: 'epk_vv',
+	maxNativeZoom: 14
+})	
+
+var b3 = L.tileLayer.wms('https://tiles.maaamet.ee/tm/?service=WMS', {
+	layers: 'kaart',
+	maxNativeZoom: 14
+})
+		
+var b4 = L.tileLayer.wms('https://tiles.maaamet.ee/tm/?service=WMS', {
+	layers: 'vreljeef',
+	maxNativeZoom: 13
+})
+
+baseLayers = {
+	'Aerofoto': b1,
+	'Kaart': b2,
+	'Kaart': b3,
+	'Reljeef': b4,
+};
+
+var activeLayer = "Reljeef";
+
+var linestring, linestring2;
+
+var lineStyle = {
+	"color": "#ff5330",
+	"weight": 6,
+	"opacity": 1,
+	"stroke": true
+};
+
+var lineStyle2 = {
+	"color": "#ffc0cb",
+	"weight": 1,
+	"opacity": 1,
+	"stroke": true
+};
+
+LayerControl = L.control.layers(baseLayers).addTo(map);
+baseLayers[activeLayer].addTo(map);
+
+document.getElementsByClassName('leaflet-control-layers-base')[0].insertAdjacentHTML('afterend', '<div class="leaflet-control-layers-separator"></div><label><input id="cb" type="checkbox" checked=""><span> Taust</span></label>');
+
+document.getElementById("cb").addEventListener("change", function(){
+
+	if (this.checked){
+		baseLayers[activeLayer].addTo(map);
+		
+	} else {
+		baseLayers[activeLayer].remove(map);
+		b2.remove(map);
+	}
+});
+
+fetch("line.geojson").then(response => response.json()).then(line => {
+	linestring = L.geoJson(line, {style: lineStyle}).addTo(map);
+	linestring2 = L.geoJson(line, {style: lineStyle2}).addTo(map);
+	
+	map.fitBounds(linestring.getBounds());
+});
+
+map.on('baselayerchange', function(layer) {
+	activeLayer = layer.name;
+	document.getElementById('cb').checked = true;
+	if (activeLayer!=="Kaart"){
+		b2.remove(map);
+	}	
+});
+
+map.on('zoomend', function(e) {	
+	if (map.getZoom()>12){
+		linestring.setStyle({"weight": 10});
+		linestring.setStyle({"opacity": 0.4});
+		linestring2.setStyle({"color": "#000"});
+				
+	} else {
+		linestring.setStyle({"weight": 6});
+		linestring.setStyle({"opacity": 1});
+		linestring2.setStyle({"color": "#ffc0cb"});
+	}
+});
+
+map.on('baselayerchange zoomend', function(e) {	
+	if (activeLayer==="Kaart" && document.getElementById('cb').checked){
+		if (map.getZoom()>10){
+			b3.remove(map);
+			b2.addTo(map);
+		} else {
+			b2.remove(map);
+			b3.addTo(map);
+		}
+	}
+});
+
+</script>
+</body>
+</html>
